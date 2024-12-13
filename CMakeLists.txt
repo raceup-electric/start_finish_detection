@@ -7,6 +7,8 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(eufs_msgs REQUIRED) 
+find_package(kvaser_reader_driver REQUIRED) 
+
 
 # Add executable
 add_executable(start_finish_detection_node src/start_finish_detection_node.cpp)
@@ -17,6 +19,7 @@ ament_target_dependencies(start_finish_detection_node
   std_msgs
   geometry_msgs
   eufs_msgs 
+  kvaser_reader_driver
 )
 
 # Install the executable
@@ -25,7 +28,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME})
 
 # Install other resources (e.g., launch files)
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+#install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 # Ament package
 ament_package()

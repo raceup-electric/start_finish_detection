@@ -2,6 +2,7 @@
 #include "std_msgs/msg/bool.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "eufs_msgs/msg/cone_array_with_covariance.hpp"
+#include "kvaser_reader_driver/msg/can_data.hpp"
 
 class StartFinishDetectionNode : public rclcpp::Node {
 public:
@@ -9,8 +10,8 @@ public:
         : Node("start_finish_detection_node"),
           tracking_started_(false),
           exited_radius_(false) {
-        // Initialize publisher
-        finish_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/finish", 10);
+        // Initialize publisher for CanData messages
+        finish_publisher_ = this->create_publisher<kvaser_reader_driver::msg::CanData>("/can_data_in", 10);
 
         // Initialize subscriber
         cone_subscriber_ = this->create_subscription<eufs_msgs::msg::ConeArrayWithCovariance>(
@@ -22,12 +23,8 @@ private:
     void processCones(const eufs_msgs::msg::ConeArrayWithCovariance::SharedPtr msg) {
         // Check if there are any big orange cones
         if (msg->big_orange_cones.size() < 2) {
-            //RCLCPP_INFO(this->get_logger(), "Not enough big orange cones detected.");
             return; // Not enough cones to calculate midpoint
         }
-
-        // Print message when big orange cones are detected
-        //RCLCPP_INFO(this->get_logger(), "Big orange cones detected.");
 
         // Calculate the middle point of the closest two big orange cones
         auto closest_middle_point = calculateMiddlePoint(msg->big_orange_cones[0].point, msg->big_orange_cones[1].point);
@@ -35,8 +32,6 @@ private:
 
         // If we are not tracking, check if the center point is within the start radius
         if (!tracking_started_ && current_distance < START_RADIUS) {
-            RCLCPP_INFO(this->get_logger(), "Start/Finish point detected at (x: %.2f, y: %.2f, z: %.2f)",
-                        closest_middle_point.x, closest_middle_point.y, closest_middle_point.z);
             tracking_started_ = true;
             initial_middle_point_ = closest_middle_point;
             exited_radius_ = false; // Reset exit flag
@@ -47,7 +42,6 @@ private:
             double exit_distance = calculateDistanceBetweenPoints(closest_middle_point, initial_middle_point_);
             if (exit_distance > EXIT_RADIUS || msg->big_orange_cones.empty()) {
                 exited_radius_ = true;
-                //RCLCPP_INFO(this->get_logger(), "Exited the radius or no big orange cones detected.");
             }
 
             // Trigger finish if we have exited the radius or no cones are detected
@@ -77,13 +71,27 @@ private:
     }
 
     void publishFinishMessage() {
-        std_msgs::msg::Bool finish_message;
-        finish_message.data = true;
-        finish_publisher_->publish(finish_message);
+        kvaser_reader_driver::msg::CanData can_message;
+
+        // Set header
+        can_message.header.stamp = this->get_clock()->now();
+
+        // Set CAN message details
+        can_message.id = 0x02; // BRAKE_RELE_ID
+        can_message.length = 8; // Default length, can adjust based on msg_body
+        can_message.flags = 0; // Flags as per your need (default to 0)
+        
+        // Set msg_body (could be a specific pattern or empty)
+        std::fill(can_message.msg_body.begin(), can_message.msg_body.end(), 0); // Example empty message
+
+        can_message.timestamp = static_cast<uint32_t>(rclcpp::Time(this->get_clock()->now()).seconds());
+
+        // Publish the CAN data message
+        finish_publisher_->publish(can_message);
     }
 
     // Publishers and subscribers
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr finish_publisher_;
+    rclcpp::Publisher<kvaser_reader_driver::msg::CanData>::SharedPtr finish_publisher_;
     rclcpp::Subscription<eufs_msgs::msg::ConeArrayWithCovariance>::SharedPtr cone_subscriber_;
 
     // Tracking state
